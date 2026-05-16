@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "groceries-tool"
+version = "0.1.0"
+description = "OurGroceries recipe management tool"
+requires-python = ">=3.11"
+dependencies = [
+    "ourgroceries>=1.5.0",
+    "python-dotenv>=1.0",
+    "argcomplete>=3.0",
+]
+
+[project.scripts]
+groceries = "groceries.cli:main"
