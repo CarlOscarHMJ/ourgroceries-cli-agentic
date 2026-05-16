@@ -1,6 +1,17 @@
 # OurGroceries Recipe Tool
 
-Add recipes as shopping lists to OurGroceries via AI agent or CLI.
+Turn recipe text into structured shopping lists in [OurGroceries](https://www.ourgroceries.com)
+using an AI agent. Paste a recipe from any website, a screenshot, or just type
+the ingredients — the agent parses it, categorizes every ingredient, and adds
+it as a recipe list. Later, with one command, append all items from any recipe
+to your main shopping list.
+
+The agent handles the tedious parts automatically:
+
+- **Categorization** — matches each ingredient to the right OurGroceries category (Dairy, Bread, Produce, etc.)
+- **Language** — all content in your configured language (Danish by default)
+- **Scaling** — recipes are scaled to 3 adults by default, with portion counts in the notes
+- **Shopping list sync** — fuzzy-match recipe names to append items to your main shopping list
 
 ## Prerequisites
 
@@ -35,12 +46,12 @@ ingredients are written in (see `AGENTS.md`).
 
 ```bash
 # Add a recipe — text, URL, file, or stdin
-groceries add-recipe "Pandekager: 3 æg, 2 dl mælk, 150 g mel, smør"
+groceries add-recipe "Pancakes: 3 eggs, 2 dl milk, 150 g flour, butter"
 groceries add-recipe https://example.com/recipe
 cat recipe.txt | groceries add-recipe
 
 # Add items from recipes to your shopping list
-groceries add-to-shopping-list blomkål taco pandekager
+groceries add-to-shopping-list cauliflower tacos pancakes
 
 # List available categories
 groceries categories
@@ -58,7 +69,7 @@ python3 ourgroceries_tool.py append-recipes "Shopping List" '["Recipe Name"]'
 ## How it works
 
 ```
-groceries add-recipe "Pandekager: 3 æg, 2 dl mælk…"
+groceries add-recipe "Pancakes: 3 eggs, 2 dl milk…"
        │
        ▼  subprocess
 opencode run "Add this recipe…"
