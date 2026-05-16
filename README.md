@@ -1,4 +1,4 @@
-# OurGroceries Recipe Tool
+# OurGroceries Recipe Creation Tool
 
 Turn recipe text into structured shopping lists in [OurGroceries](https://www.ourgroceries.com)
 using an AI agent. Paste a recipe from any website, a screenshot, or just type
