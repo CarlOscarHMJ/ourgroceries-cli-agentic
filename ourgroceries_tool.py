@@ -71,6 +71,14 @@ async def list_recipes():
         print(r["name"])
 
 
+async def list_shopping_lists():
+    og = OurGroceries(USERNAME, PASSWORD)
+    await og.login()
+    overview = await og.get_my_lists()
+    for sl in overview.get("shoppingLists", []):
+        print(sl["name"])
+
+
 async def append_recipes(shopping_list_name, recipe_names):
     og = OurGroceries(USERNAME, PASSWORD)
     await og.login()
@@ -118,6 +126,7 @@ async def main():
         print("  categories              List available categories", file=sys.stderr)
         print("  add-recipe <file>       Add recipe from JSON file (use - for stdin)", file=sys.stderr)
         print("  list-recipes            List all recipe names", file=sys.stderr)
+        print("  list-shopping-lists     List all shopping list names", file=sys.stderr)
         print("  append-recipes <list> <json_names>  Append items from recipes to a shopping list", file=sys.stderr)
         sys.exit(1)
 
@@ -139,6 +148,8 @@ async def main():
         await add_recipe(recipe)
     elif cmd == "list-recipes":
         await list_recipes()
+    elif cmd == "list-shopping-lists":
+        await list_shopping_lists()
     elif cmd == "append-recipes":
         if len(sys.argv) < 4:
             print("Usage: ourgroceries_tool.py append-recipes <shopping_list_name> <recipe_names_json>", file=sys.stderr)

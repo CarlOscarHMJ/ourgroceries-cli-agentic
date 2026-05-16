@@ -51,6 +51,7 @@ groceries add-recipe https://example.com/recipe
 cat recipe.txt | groceries add-recipe
 
 # Add items from recipes to your shopping list
+# (shows matches, asks for confirmation, then appends directly)
 groceries add-to-shopping-list cauliflower tacos pancakes
 
 # List all recipes and categories
@@ -69,11 +70,13 @@ python3 ourgroceries_tool.py append-recipes "Shopping List" '["Recipe Name"]'
 
 ## How it works
 
+**Adding a recipe** uses the AI agent:
+
 ```
 groceries add-recipe "Pancakes: 3 eggs, 2 dl milk…"
        │
        ▼  subprocess
-opencode run "Add this recipe…"
+opencode run --model opencode/big-pickle "Add this recipe…"
        │
        ▼  reads AGENTS.md
 agent: 1. Parses recipe → name + ingredients
@@ -81,6 +84,22 @@ agent: 1. Parses recipe → name + ingredients
        3. Matches each ingredient to a category
        4. Writes recipe.json, runs add-recipe, cleans up
 ```
+
+**Adding to the shopping list** is handled directly by the script:
+
+```
+groceries add-to-shopping-list tzatziki vikingegryde
+       │
+       ▼  subprocess
+ourgroceries_tool.py list-recipes → all recipe names
+       │
+       ▼  fuzzy match
+Found: "Tzatziki 🥒", "Vikingegryde m. rodfrugtsmos 🍲"
+       │
+       ▼  user confirms [Y/n]
+ourgroceries_tool.py append-recipes "Indkøb i DK…" '["Tzatziki 🥒", …]'
+       │
+       ▼  done — items appended
 
 The agent follows `AGENTS.md` for naming rules, quantity formatting,
 spelling fixes, plural forms, and scaling to 3 adults.

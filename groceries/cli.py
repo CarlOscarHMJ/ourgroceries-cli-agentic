@@ -1,5 +1,7 @@
 import argparse
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -50,15 +52,87 @@ def cmd_add_recipe(args):
 
 
 def cmd_add_to_shopping_list(args):
-    names = " ".join(args.names)
-    prompt = (
-        "Follow the 'Add to shopping list' section in AGENTS.md "
-        "to add these to our shopping list. "
-        "The user has already confirmed — do NOT ask for confirmation, "
-        "just add them:\n\n"
-        f"{names}"
+    # 1. Get all recipe names
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"), "list-recipes"],
+        cwd=PROJECT_DIR,
+        capture_output=True,
+        text=True,
     )
-    run_opencode(prompt)
+    recipe_names = [n for n in result.stdout.strip().split("\n") if n]
+
+    # 2. Get shopping list name
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
+         "list-shopping-lists"],
+        cwd=PROJECT_DIR,
+        capture_output=True,
+        text=True,
+    )
+    shopping_lists = [n for n in result.stdout.strip().split("\n") if n]
+    if not shopping_lists:
+        print("Error: no shopping lists found", file=sys.stderr)
+        sys.exit(1)
+    shopping_list = shopping_lists[0]
+
+    # 3. Fuzzy match — each name is matched individually
+    matched = set()
+    for name in args.names:
+        for recipe_name, _score in fuzzy_match(name, recipe_names):
+            matched.add(recipe_name)
+    matches = sorted(matched)
+
+    if not matches:
+        print(f"No recipes matching: {' '.join(args.names)}")
+        return
+
+    print(f"\nMatching recipes (adding to '{shopping_list}'):")
+    for i, name in enumerate(matches, 1):
+        print(f"  {i}. {name}")
+
+    response = input("\nAdd to shopping list? [Y/n] ").strip().lower()
+    if response and response not in ("y", "yes"):
+        print("Cancelled.")
+        return
+
+    # 4. Append directly
+    subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
+         "append-recipes", shopping_list, json.dumps(matches, ensure_ascii=False)],
+        cwd=PROJECT_DIR,
+    )
+
+
+def fuzzy_match(query, names):
+    q = query.lower().strip()
+    scored = []
+    for name in names:
+        n = name.lower()
+        score = 0
+
+        # remove emoji for matching
+        n_clean = n.split(" ")[0] if " " in n else n
+        # clean parentheses content for matching
+        n_words = re.sub(r"[()]", "", n).split()
+
+        if q == n:
+            score = 100
+        elif q in n:
+            score = 90 if n.startswith(q) else 85
+        else:
+            q_words = [w for w in q.split() if len(w) >= 3]
+            if q_words:
+                hits = 0
+                for qw in q_words:
+                    if any(qw in nw for nw in n_words):
+                        hits += 1
+                score = (hits / len(q_words)) * 70
+
+        if score >= 70:
+            scored.append((name, score))
+
+    scored.sort(key=lambda x: -x[1])
+    return scored
 
 
 def cmd_list_recipes():
