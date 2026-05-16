@@ -53,7 +53,8 @@ cat recipe.txt | groceries add-recipe
 # Add items from recipes to your shopping list
 groceries add-to-shopping-list cauliflower tacos pancakes
 
-# List available categories
+# List all recipes and categories
+groceries list
 groceries categories
 ```
 

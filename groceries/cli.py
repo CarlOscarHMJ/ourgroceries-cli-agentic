@@ -17,6 +17,7 @@ def run_opencode(message: str):
     subprocess.run(
         ["opencode", "run", "--model", "opencode/big-pickle", message],
         cwd=PROJECT_DIR,
+        stdin=subprocess.DEVNULL,
     )
 
 
@@ -52,9 +53,19 @@ def cmd_add_to_shopping_list(args):
     names = " ".join(args.names)
     prompt = (
         "Follow the 'Add to shopping list' section in AGENTS.md "
-        f"to add these to our shopping list:\n\n{names}"
+        "to add these to our shopping list. "
+        "The user has already confirmed — do NOT ask for confirmation, "
+        "just add them:\n\n"
+        f"{names}"
     )
     run_opencode(prompt)
+
+
+def cmd_list_recipes():
+    subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"), "list-recipes"],
+        cwd=PROJECT_DIR,
+    )
 
 
 def cmd_categories():
@@ -90,7 +101,7 @@ _groceries() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
     local prev="${{COMP_WORDS[COMP_CWORD-1]}}"
     if [[ ${{COMP_CWORD}} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "add-recipe add-to-shopping-list categories install" -- "$cur") )
+        COMPREPLY=( $(compgen -W "add-recipe add-to-shopping-list categories list install" -- "$cur") )
     fi
 }}
 complete -F _groceries groceries
@@ -129,6 +140,7 @@ complete -F _groceries groceries
     print()
     print("  groceries add-recipe <text | url | file>")
     print("  groceries add-to-shopping-list <recipe names...>")
+    print("  groceries list")
     print("  groceries categories")
 
 
@@ -152,6 +164,7 @@ def main():
     p_shop.add_argument("names", nargs="+", help="Recipe name(s) to add")
 
     sub.add_parser("categories", help="List available categories")
+    sub.add_parser("list", help="List all recipes")
     sub.add_parser("install", help="Install the groceries command globally")
 
     if argcomplete:
@@ -164,6 +177,8 @@ def main():
         cmd_add_to_shopping_list(args)
     elif args.command == "categories":
         cmd_categories()
+    elif args.command == "list":
+        cmd_list_recipes()
     elif args.command == "install":
         cmd_install()
 
