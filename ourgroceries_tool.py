@@ -79,6 +79,39 @@ async def list_shopping_lists():
         print(sl["name"])
 
 
+async def clear_list(shopping_list_name, keep_items=None):
+    og = OurGroceries(USERNAME, PASSWORD)
+    await og.login()
+
+    overview = await og.get_my_lists()
+    list_id = None
+    for sl in overview.get("shoppingLists", []):
+        if sl["name"] == shopping_list_name:
+            list_id = sl["id"]
+            break
+    if not list_id:
+        print(f"Shopping list '{shopping_list_name}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    data = await og.get_list_items(list_id)
+    items = data["list"]["items"]
+
+    keep = set(keep_items or [])
+    removed = 0
+    for item in items:
+        if item["value"] not in keep:
+            await og.remove_item_from_list(list_id, item["id"])
+            removed += 1
+
+    if keep_items:
+        print(
+            f"Removed {removed} items from '{shopping_list_name}' "
+            f"(kept {len(items) - removed})"
+        )
+    else:
+        print(f"Removed all {removed} items from '{shopping_list_name}'")
+
+
 async def append_recipes(shopping_list_name, recipe_names):
     og = OurGroceries(USERNAME, PASSWORD)
     await og.login()
@@ -127,6 +160,7 @@ async def main():
         print("  add-recipe <file>       Add recipe from JSON file (use - for stdin)", file=sys.stderr)
         print("  list-recipes            List all recipe names", file=sys.stderr)
         print("  list-shopping-lists     List all shopping list names", file=sys.stderr)
+        print("  clear-list <list> [keep_json]  Remove items from a shopping list", file=sys.stderr)
         print("  append-recipes <list> <json_names>  Append items from recipes to a shopping list", file=sys.stderr)
         sys.exit(1)
 
@@ -150,6 +184,13 @@ async def main():
         await list_recipes()
     elif cmd == "list-shopping-lists":
         await list_shopping_lists()
+    elif cmd == "clear-list":
+        if len(sys.argv) < 3:
+            print("Usage: ourgroceries_tool.py clear-list <shopping_list_name> [keep_json]", file=sys.stderr)
+            sys.exit(1)
+        shopping_list_name = sys.argv[2]
+        keep_items = json.loads(sys.argv[3]) if len(sys.argv) >= 4 else None
+        await clear_list(shopping_list_name, keep_items)
     elif cmd == "append-recipes":
         if len(sys.argv) < 4:
             print("Usage: ourgroceries_tool.py append-recipes <shopping_list_name> <recipe_names_json>", file=sys.stderr)

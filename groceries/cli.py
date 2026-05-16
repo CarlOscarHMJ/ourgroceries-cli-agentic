@@ -90,17 +90,70 @@ def cmd_add_to_shopping_list(args):
     for i, name in enumerate(matches, 1):
         print(f"  {i}. {name}")
 
-    response = input("\nAdd to shopping list? [Y/n] ").strip().lower()
-    if response and response not in ("y", "yes"):
+    response = input(
+        "\nAdd which? [Y=all / n=cancel / 1,3 / 1-3] "
+    ).strip().lower()
+
+    if response in ("n", "no"):
         print("Cancelled.")
+        return
+
+    selected = set()
+    if response in ("", "y", "yes", "a", "all"):
+        selected = set(matches)
+    else:
+        # Parse numbers, ranges, and commas
+        import re as _re
+        tokens = _re.split(r"[,\s]+", response)
+        for token in tokens:
+            token = token.strip()
+            if not token:
+                continue
+            if "-" in token:
+                try:
+                    start, end = token.split("-", 1)
+                    for n in range(int(start), int(end) + 1):
+                        if 1 <= n <= len(matches):
+                            selected.add(matches[n - 1])
+                except ValueError:
+                    print(f"Ignoring invalid range: {token}", file=sys.stderr)
+            else:
+                try:
+                    n = int(token)
+                    if 1 <= n <= len(matches):
+                        selected.add(matches[n - 1])
+                except ValueError:
+                    print(f"Ignoring invalid input: {token}", file=sys.stderr)
+
+    if not selected:
+        print("No recipes selected.")
         return
 
     # 4. Append directly
     subprocess.run(
         [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
-         "append-recipes", shopping_list, json.dumps(matches, ensure_ascii=False)],
+         "append-recipes", shopping_list,
+         json.dumps(sorted(selected), ensure_ascii=False)],
         cwd=PROJECT_DIR,
     )
+
+
+def levenshtein(s1, s2):
+    if len(s1) < len(s2):
+        s1, s2 = s2, s1
+    if len(s2) == 0:
+        return len(s1)
+    prev = list(range(len(s2) + 1))
+    for i, c1 in enumerate(s1):
+        curr = [i + 1]
+        for j, c2 in enumerate(s2):
+            curr.append(min(
+                prev[j + 1] + 1,
+                curr[j] + 1,
+                prev[j] + (c1 != c2),
+            ))
+        prev = curr
+    return prev[-1]
 
 
 def fuzzy_match(query, names):
@@ -110,9 +163,6 @@ def fuzzy_match(query, names):
         n = name.lower()
         score = 0
 
-        # remove emoji for matching
-        n_clean = n.split(" ")[0] if " " in n else n
-        # clean parentheses content for matching
         n_words = re.sub(r"[()]", "", n).split()
 
         if q == n:
@@ -120,15 +170,23 @@ def fuzzy_match(query, names):
         elif q in n:
             score = 90 if n.startswith(q) else 85
         else:
-            q_words = [w for w in q.split() if len(w) >= 3]
+            q_clean = re.sub(r"[()]", "", q)
+            q_words = [w for w in q_clean.split() if len(w) >= 3]
             if q_words:
                 hits = 0
                 for qw in q_words:
                     if any(qw in nw for nw in n_words):
                         hits += 1
+                    else:
+                        for nw in n_words:
+                            d = levenshtein(qw, nw)
+                            maxlen = max(len(qw), len(nw))
+                            if maxlen > 0 and (d / maxlen) <= 0.4:
+                                hits += 0.7
+                                break
                 score = (hits / len(q_words)) * 70
 
-        if score >= 70:
+        if score >= 55:
             scored.append((name, score))
 
     scored.sort(key=lambda x: -x[1])
@@ -145,6 +203,32 @@ def cmd_list_recipes():
 def cmd_categories():
     subprocess.run(
         [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"), "categories"],
+        cwd=PROJECT_DIR,
+    )
+
+
+def cmd_clear_list():
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
+         "list-shopping-lists"],
+        cwd=PROJECT_DIR,
+        capture_output=True,
+        text=True,
+    )
+    shopping_lists = [n for n in result.stdout.strip().split("\n") if n]
+    if not shopping_lists:
+        print("Error: no shopping lists found", file=sys.stderr)
+        sys.exit(1)
+    shopping_list = shopping_lists[0]
+
+    resp = input(f"Remove ALL items from '{shopping_list}'? [y/N] ").strip().lower()
+    if resp not in ("y", "yes"):
+        print("Cancelled.")
+        return
+
+    subprocess.run(
+        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
+         "clear-list", shopping_list],
         cwd=PROJECT_DIR,
     )
 
@@ -175,7 +259,7 @@ _groceries() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
     local prev="${{COMP_WORDS[COMP_CWORD-1]}}"
     if [[ ${{COMP_CWORD}} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "add-recipe add-to-shopping-list categories list install" -- "$cur") )
+        COMPREPLY=( $(compgen -W "add-recipe add-to-shopping-list categories list clear install" -- "$cur") )
     fi
 }}
 complete -F _groceries groceries
@@ -216,6 +300,7 @@ complete -F _groceries groceries
     print("  groceries add-to-shopping-list <recipe names...>")
     print("  groceries list")
     print("  groceries categories")
+    print("  groceries clear")
 
 
 def main():
@@ -239,6 +324,7 @@ def main():
 
     sub.add_parser("categories", help="List available categories")
     sub.add_parser("list", help="List all recipes")
+    sub.add_parser("clear", help="Remove all items from shopping list")
     sub.add_parser("install", help="Install the groceries command globally")
 
     if argcomplete:
@@ -253,6 +339,8 @@ def main():
         cmd_categories()
     elif args.command == "list":
         cmd_list_recipes()
+    elif args.command == "clear":
+        cmd_clear_list()
     elif args.command == "install":
         cmd_install()
 
