@@ -75,67 +75,70 @@ def cmd_add_to_shopping_list(args):
         sys.exit(1)
     shopping_list = shopping_lists[0]
 
-    # 3. Fuzzy match — each name is matched individually
-    matched = set()
-    for name in args.names:
-        for recipe_name, _score in fuzzy_match(name, recipe_names):
+    # 3. Split args by comma, then match + confirm each query
+    queries = []
+    for arg in args.names:
+        for piece in arg.split(","):
+            piece = piece.strip()
+            if piece:
+                queries.append(piece)
+
+    for query in queries:
+        matched = set()
+        for recipe_name, _score in fuzzy_match(query, recipe_names):
             matched.add(recipe_name)
-    matches = sorted(matched)
+        matches = sorted(matched)
 
-    if not matches:
-        print(f"No recipes matching: {' '.join(args.names)}")
-        return
+        if not matches:
+            print(f"\nNo recipes matching '{query}'")
+            continue
 
-    print(f"\nMatching recipes (adding to '{shopping_list}'):")
-    for i, name in enumerate(matches, 1):
-        print(f"  {i}. {name}")
+        print(f"\nMatching '{query}':")
+        for i, name in enumerate(matches, 1):
+            print(f"  {i}. {name}")
 
-    response = input(
-        "\nAdd which? [Y=all / n=cancel / 1,3 / 1-3] "
-    ).strip().lower()
+        response = input(
+            "Add which? [Y=all / n=none / 1,3 / 1-3] "
+        ).strip().lower()
 
-    if response in ("n", "no"):
-        print("Cancelled.")
-        return
+        if response in ("n", "no"):
+            continue
 
-    selected = set()
-    if response in ("", "y", "yes", "a", "all"):
-        selected = set(matches)
-    else:
-        # Parse numbers, ranges, and commas
-        import re as _re
-        tokens = _re.split(r"[,\s]+", response)
-        for token in tokens:
-            token = token.strip()
-            if not token:
-                continue
-            if "-" in token:
-                try:
-                    start, end = token.split("-", 1)
-                    for n in range(int(start), int(end) + 1):
+        selected = set()
+        if response in ("", "y", "yes", "a", "all"):
+            selected = set(matches)
+        else:
+            import re as _re
+            tokens = _re.split(r"[,\s]+", response)
+            for token in tokens:
+                token = token.strip()
+                if not token:
+                    continue
+                if "-" in token:
+                    try:
+                        start, end = token.split("-", 1)
+                        for n in range(int(start), int(end) + 1):
+                            if 1 <= n <= len(matches):
+                                selected.add(matches[n - 1])
+                    except ValueError:
+                        print(f"Ignoring invalid range: {token}", file=sys.stderr)
+                else:
+                    try:
+                        n = int(token)
                         if 1 <= n <= len(matches):
                             selected.add(matches[n - 1])
-                except ValueError:
-                    print(f"Ignoring invalid range: {token}", file=sys.stderr)
-            else:
-                try:
-                    n = int(token)
-                    if 1 <= n <= len(matches):
-                        selected.add(matches[n - 1])
-                except ValueError:
-                    print(f"Ignoring invalid input: {token}", file=sys.stderr)
+                    except ValueError:
+                        print(f"Ignoring invalid input: {token}", file=sys.stderr)
 
-    if not selected:
-        print("No recipes selected.")
-        return
+        if not selected:
+            continue
 
-    # 4. Append directly
-    subprocess.run(
-        [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
-         "append-recipes", shopping_list,
-         json.dumps(sorted(selected), ensure_ascii=False)],
-        cwd=PROJECT_DIR,
-    )
+        subprocess.run(
+            [sys.executable, str(PROJECT_DIR / "ourgroceries_tool.py"),
+             "append-recipes", shopping_list,
+             json.dumps(sorted(selected), ensure_ascii=False)],
+            cwd=PROJECT_DIR,
+        )
 
 
 def levenshtein(s1, s2):
